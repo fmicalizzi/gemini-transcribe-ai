@@ -6,8 +6,9 @@ A powerful, robust command-line application in Node.js/TypeScript for batch audi
 - **Batch Processing**: Process entire directories of media files in parallel with controlled concurrency.
 - **Robust Retries**: Built-in exponential backoff for network issues and API rate limits (HTTP 429/500/503).
 - **Multiple Formats**: Outputs plain text (`.txt`), raw JSON with annotations (`.json`), and parsed SubRip subtitles (`.srt`).
-- **Diarization & Timestamps**: Supports speaker identification and word-level timestamps (requires `verbatim` mode).
+- **Diarization & Timestamps**: Supports speaker identification and word-level timestamps (requires `verbatim` mode; auto-enabled when you request `--diarization` or `.srt`/`.json` output).
 - **Smart Formatting**: Default `smart` mode provides disfluency removal and clean formatting.
+- **Automatic Chunking**: Files longer than the API duration limit are split with `ffmpeg` into ~55-minute segments (respects the 30-minute cap in diarization/word-timestamp mode), transcribed sequentially and merged — `.srt`/`.json` timings stay absolute, temp chunks are cleaned up.
 
 ## Installation
 
@@ -27,14 +28,17 @@ Ensure you have Node.js 18+ installed.
    npm install -g .
    ```
 
+> Chunking requires `ffmpeg` on your PATH (only for files over the duration limit).
+
 ## Configuration
 
-The CLI requires a Gemini API key. You can provide it via an environment variable:
+The CLI requires a Gemini API key. Place it in a `.env` file at the **project root** (always loaded, even when running the global `transcribe` command from another folder):
 
 ```bash
-export GEMINI_API_KEY="your_api_key_here"
+GEMINI_API_KEY="your_api_key_here"
 ```
-Or place it in a `.env` file in the directory where you run the command.
+
+Or export it in your shell environment instead.
 
 ## Usage
 
@@ -70,10 +74,10 @@ The `gemini-3.5-transcribe` model enforces the following constraints. The CLI va
 | **Custom Vocabulary** (`--vocab`) | ❌ Incompatible | ✅ Supported |
 
 **Duration Limits:**
-- Unary mode (no diarization or timestamps): **1 hour**
-- Enhanced mode (diarization or word-timestamps): **30 minutes**
+- Standard mode (no diarization or word timestamps): **1 hour per API call**
+- Enhanced mode (diarization or word timestamps): **30 minutes per API call**
 
-Files exceeding these limits will be skipped with an error message to avoid failed API interactions.
+Files exceeding these limits are **not skipped**: they are automatically split with `ffmpeg` into chunks of `--split-minutes` (default 55, capped to 30 in enhanced mode), transcribed one chunk at a time, and the outputs merged. Note that with `--diarization`, speaker labels are computed per chunk and may not be consistent across chunks of the same file.
 
 ## Output Generation
 
