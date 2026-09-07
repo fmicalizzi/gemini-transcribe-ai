@@ -103,7 +103,13 @@ async function transcribeOne(filePath: string, opts: TranscribeOptions, log: (ms
             if (content.type === 'text' && content.annotations) {
               for (const annotation of content.annotations) {
                 if (annotation.type === 'word_info') {
-                  words.push(annotation);
+                  const s = parseFloat(annotation.start_offset);
+                  const e = parseFloat(annotation.end_offset);
+                  if (Number.isFinite(s) && Number.isFinite(e)) {
+                    words.push(annotation);
+                  } else {
+                    log(`[WARN] Dropped word without valid timestamps: ${JSON.stringify(annotation).slice(0, 160)}`);
+                  }
                 }
               }
             }

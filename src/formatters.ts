@@ -9,7 +9,8 @@ export async function saveJson(outPath: string, data: any) {
 }
 
 function formatSrtTime(secondsStr: string): string {
-  const totalSeconds = parseFloat(secondsStr.replace('s', ''));
+  const totalSeconds = parseFloat(secondsStr);
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '00:00:00,000';
   const date = new Date(0);
   date.setMilliseconds(totalSeconds * 1000);
   const iso = date.toISOString(); // 1970-01-01T00:00:00.000Z
