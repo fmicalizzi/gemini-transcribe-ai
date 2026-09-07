@@ -1,9 +1,11 @@
 #!/usr/bin/env node
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import { Command } from 'commander';
 import { transcribeFile, TranscribeOptions } from './transcriber.js';
 import fs from 'fs/promises';
 import path from 'path';
+
+dotenv.config({ path: path.resolve(__dirname, '..', '.env'), quiet: true });
 
 const program = new Command();
 
@@ -18,6 +20,7 @@ program
   .option('--timestamps <gran>', 'e.g., word (forces verbatim)')
   .option('--vocab <list>', 'Comma-separated custom vocabulary')
   .option('--formats <lista>', 'Output formats (txt,json,srt)', 'txt,srt')
+  .option('--split-minutes <n>', 'Chunk length (min) for files over the API limit', '55')
   .option('-c, --concurrency <n>', 'Parallel files', '2')
   .option('--recursive', 'Recurse into subdirectories')
   .option('--dry-run', 'List what would be processed')
@@ -48,10 +51,18 @@ async function main() {
     process.exit(1);
   }
 
+  const formats = options.formats.split(',').map((s: string) => s.trim());
+
+  if ((options.diarization || formats.includes('srt') || formats.includes('json')) && options.timestamps !== 'word') {
+    console.warn('Warning: srt/json output and --diarization require word-level timestamps. Forcing --timestamps word.');
+    options.timestamps = 'word';
+  }
+
   // Validations
-  if (options.mode === 'smart') {
+  const modeExplicit = program.getOptionValueSource('mode') === 'cli';
+  if (options.mode === 'smart' && modeExplicit) {
     if (options.timestamps === 'word' || options.diarization) {
-      console.error("Error: 'smart' mode is incompatible with --timestamps or --diarization.");
+      console.error("Error: 'smart' mode is incompatible with --timestamps/--diarization or with srt/json outputs.");
       process.exit(1);
     }
     if (options.vocab) {
@@ -66,7 +77,6 @@ async function main() {
     }
   }
 
-  const formats = options.formats.split(',').map((s: string) => s.trim());
   const transcribeOpts: TranscribeOptions = {
     out: options.out,
     mode: options.mode as 'smart' | 'verbatim',
@@ -76,6 +86,7 @@ async function main() {
     vocab: options.vocab,
     formats,
     verbose: !!options.verbose,
+    splitMinutes: parseInt(options.splitMinutes, 10),
   };
 
   const stat = await fs.stat(inputPath);
