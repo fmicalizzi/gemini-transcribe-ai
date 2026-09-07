@@ -126,10 +126,11 @@ async function transcribeOne(filePath: string, opts: TranscribeOptions, log: (ms
   }
 }
 
-async function saveOutputs(basePath: string, text: string, words: any[], opts: TranscribeOptions, log: (msg: string) => void) {
+async function saveOutputs(basePath: string, text: string, words: any[], opts: TranscribeOptions, log: (msg: string) => void): Promise<string[]> {
   const outDir = opts.out || path.dirname(basePath);
   await fs.mkdir(outDir, { recursive: true });
   const baseName = path.basename(basePath, path.extname(basePath));
+  const outputs: string[] = [];
 
   for (const fmt of opts.formats) {
     const outPath = path.join(outDir, `${baseName}.${fmt}`);
@@ -140,13 +141,24 @@ async function saveOutputs(basePath: string, text: string, words: any[], opts: T
       await saveJson(tempPath, words);
     } else if (fmt === 'srt') {
       await saveSrt(tempPath, words);
+    } else {
+      continue;
     }
     await fs.rename(tempPath, outPath);
+    outputs.push(outPath);
     log(`[SUCCESS] Wrote ${outPath}`);
   }
+  return outputs;
 }
 
-export async function transcribeFile(filePath: string, opts: TranscribeOptions) {
+export interface TranscribeResult {
+  durationSeconds: number;
+  calls: number;
+  chunks: number;
+  outputs: string[];
+}
+
+export async function transcribeFile(filePath: string, opts: TranscribeOptions): Promise<TranscribeResult> {
   const log = (msg: string) => { if (opts.verbose) console.log(msg); };
 
   log(`[INFO] Analyzing ${filePath}...`);
@@ -155,8 +167,8 @@ export async function transcribeFile(filePath: string, opts: TranscribeOptions) 
   const limit = durationLimit(opts);
   if (durationSeconds <= limit) {
     const { text, words } = await transcribeOne(filePath, opts, log);
-    await saveOutputs(filePath, text, words, opts, log);
-    return;
+    const outputs = await saveOutputs(filePath, text, words, opts, log);
+    return { durationSeconds, calls: 1, chunks: 1, outputs };
   }
 
   // Long file: split into chunks, transcribe sequentially, merge results.
@@ -182,7 +194,8 @@ export async function transcribeFile(filePath: string, opts: TranscribeOptions) 
       console.log(`[SPLIT] ${path.basename(filePath)}: chunk ${done}/${chunks.length} transcribed`);
     }
 
-    await saveOutputs(filePath, texts.join(' '), allWords, opts, log);
+    const outputs = await saveOutputs(filePath, texts.join(' '), allWords, opts, log);
+    return { durationSeconds, calls: chunks.length, chunks: chunks.length, outputs };
   } finally {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
     log(`[SPLIT] Removed temp dir ${dir}`);

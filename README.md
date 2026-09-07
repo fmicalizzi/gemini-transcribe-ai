@@ -64,6 +64,7 @@ transcribe <input-file-or-directory> [options]
 | `-c, --concurrency <n>` | Files processed in parallel | `2` |
 | `--recursive` | Recurse into subdirectories | off |
 | `--dry-run` | List what would be processed, no API calls | off |
+| `--stats` | Print history summary (runs, calls, hours) and exit | — |
 | `-v, --verbose` | Per-step logs (upload, polling, chunks, cleanup) | off |
 
 Supported inputs: `.mp3 .wav .m4a .aac .flac .ogg .webm`
@@ -128,6 +129,16 @@ upload to Files API ──► poll until ACTIVE ──► Interactions API
                                           delete remote file + temp chunks
 ```
 
+## History & usage stats
+
+Every run appends records to `logs/history.jsonl` **in the project root** (never committed; git-ignored): per file — duration, mode, chunks, API calls, output paths, wall time — and per run — options and totals.
+
+```bash
+transcribe --stats   # totals: runs, files, API calls, audio hours, failures, monthly breakdown
+```
+
+`--dry-run` and `--stats` never touch the API.
+
 ## Cost & privacy notes
 
 - Transcription is billed by your Google plan for **every API call** — a 2h file in enhanced mode = 4 chunks = 4 billed calls. Use `--dry-run` first.
@@ -152,7 +163,7 @@ npm run typecheck  # noEmit
 npm run start      # run without installing globally
 ```
 
-Source layout: `src/cli.ts` (flags/validation) · `src/transcriber.ts` (API flow) · `src/chunker.ts` (split/merge) · `src/formatters.ts` (txt/srt/json writers) · `src/util/retry.ts`.
+Source layout: `src/cli.ts` (flags/validation) · `src/transcriber.ts` (API flow) · `src/chunker.ts` (split/merge) · `src/formatters.ts` (txt/srt/json writers) · `src/history.ts` (JSONL history/stats) · `src/util/retry.ts`.
 
 ## License
 

@@ -2,17 +2,20 @@
 import dotenv from 'dotenv';
 import { Command } from 'commander';
 import { transcribeFile, TranscribeOptions } from './transcriber.js';
+import { initHistory, appendHistory, printStats } from './history.js';
 import fs from 'fs/promises';
 import path from 'path';
 
-dotenv.config({ path: path.resolve(__dirname, '..', '.env'), quiet: true });
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+dotenv.config({ path: path.join(PROJECT_ROOT, '.env'), quiet: true });
+initHistory(PROJECT_ROOT);
 
 const program = new Command();
 
 program
   .name('transcribe')
   .description('Batch transcription CLI using Gemini 3.5 Transcribe')
-  .argument('<input>', 'Input file or directory')
+  .argument('[input]', 'Input file or directory')
   .option('-o, --out <dir>', 'Output directory (default: same as input)')
   .option('-m, --mode <mode>', 'smart | verbatim', 'smart')
   .option('-l, --lang <codes>', 'Comma-separated language codes')
@@ -24,6 +27,7 @@ program
   .option('-c, --concurrency <n>', 'Parallel files', '2')
   .option('--recursive', 'Recurse into subdirectories')
   .option('--dry-run', 'List what would be processed')
+  .option('--stats', 'Print transcription history summary and exit')
   .option('-v, --verbose', 'Detailed logs');
 
 program.parse();
@@ -46,6 +50,14 @@ async function getFiles(dir: string, recursive: boolean): Promise<string[]> {
 }
 
 async function main() {
+  if (options.stats) {
+    printStats();
+    return;
+  }
+  if (!inputPath) {
+    console.error('Error: missing <input> file or directory (or use --stats).');
+    process.exit(1);
+  }
   if (!process.env.GEMINI_API_KEY) {
     console.error('Error: GEMINI_API_KEY environment variable is missing.');
     process.exit(1);
@@ -106,9 +118,12 @@ async function main() {
   }
 
   console.log(`Starting transcription for ${targetFiles.length} files with concurrency ${options.concurrency}...`);
+  const runStart = Date.now();
   
   let success = 0;
   let failed = 0;
+  let runCalls = 0;
+  let runMinutes = 0;
   const concurrencyLimit = parseInt(options.concurrency, 10);
   
   // Simple concurrency queue
@@ -117,12 +132,40 @@ async function main() {
     while (i < targetFiles.length) {
       const file = targetFiles[i++];
       console.log(`[START] ${file} (${i}/${targetFiles.length})`);
+      const start = Date.now();
       try {
-        await transcribeFile(file, transcribeOpts);
+        const res = await transcribeFile(file, transcribeOpts);
         success++;
+        runCalls += res.calls;
+        runMinutes += res.durationSeconds / 60;
+        appendHistory({
+          t: new Date().toISOString(),
+          type: 'file',
+          file,
+          durationMin: +(res.durationSeconds / 60).toFixed(2),
+          mode: transcribeOpts.mode,
+          diarization: transcribeOpts.diarization,
+          calls: res.calls,
+          chunks: res.chunks,
+          outputs: res.outputs,
+          tookSec: +((Date.now() - start) / 1000).toFixed(1),
+        });
       } catch (err: any) {
         console.error(`[ERROR] Failed to transcribe ${file}: ${err.message}`);
         failed++;
+        appendHistory({
+          t: new Date().toISOString(),
+          type: 'file',
+          file,
+          durationMin: 0,
+          mode: transcribeOpts.mode,
+          diarization: transcribeOpts.diarization,
+          calls: 0,
+          chunks: 0,
+          outputs: [],
+          tookSec: +((Date.now() - start) / 1000).toFixed(1),
+          error: err.message,
+        });
       }
     }
   }
@@ -130,10 +173,34 @@ async function main() {
   const workers = Array.from({ length: Math.min(concurrencyLimit, targetFiles.length) }, () => worker());
   await Promise.all(workers);
 
+  appendHistory({
+    t: new Date().toISOString(),
+    type: 'run',
+    input: inputPath,
+    options: {
+      mode: transcribeOpts.mode,
+      diarization: transcribeOpts.diarization,
+      timestamps: transcribeOpts.timestamps,
+      lang: transcribeOpts.lang,
+      formats: transcribeOpts.formats,
+      splitMinutes: transcribeOpts.splitMinutes,
+      concurrency: concurrencyLimit,
+      recursive: !!options.recursive,
+    },
+    files: targetFiles.length,
+    ok: success,
+    failed,
+    calls: runCalls,
+    minutes: +runMinutes.toFixed(2),
+    tookSec: +((Date.now() - runStart) / 1000).toFixed(1),
+  });
+
   console.log(`\n--- Summary ---`);
   console.log(`Total: ${targetFiles.length}`);
   console.log(`Success: ${success}`);
   console.log(`Failed: ${failed}`);
+  console.log(`API calls: ${runCalls} · Audio: ${(runMinutes / 60).toFixed(2)}h · Wall time: ${((Date.now() - runStart) / 60000).toFixed(1)}min`);
+  console.log(`History: ${path.join(PROJECT_ROOT, 'logs', 'history.jsonl')} (--stats for totals)`);
 
   if (failed > 0) {
     process.exit(1);
