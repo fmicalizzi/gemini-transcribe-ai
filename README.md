@@ -27,23 +27,36 @@ transcribe ./podcasts --diarization --formats txt,srt,json -v
 | ffmpeg | on `PATH` (only needed for files that exceed the duration limits) |
 | Gemini API key | from [AI Studio](https://aistudio.google.com/apikey) |
 
-## Install
+## Quick start
+
+Three commands from zero to transcript:
 
 ```bash
-git clone https://github.com/fmicalizzi/gemini-transcribe-ai
-cd gemini-transcribe-ai
-npm install
-npm run build
-npm install -g .        # optional: makes `transcribe` available everywhere
+# 1. install (once)
+git clone https://github.com/fmicalizzi/gemini-transcribe-ai && cd gemini-transcribe-ai
+npm install && npm run build && npm install -g .
+
+# 2. add your key (once)
+cp .env.example .env && $EDITOR .env        # paste your GEMINI_API_KEY
+
+# 3. transcribe
+transcribe ./interview.mp3
 ```
 
-Then set your key in `.env` (copy from `.env.example`):
+That writes `interview.txt` and `interview.srt` next to the audio. From then on `transcribe` works from any folder, on any path:
 
 ```bash
-cp .env.example .env    # edit and paste your GEMINI_API_KEY
+transcribe "/Users/me/Downloads/call.mp3"
 ```
 
-> **Note on `.env` location:** the CLI always loads `.env` from the project root, even when run as a global command from another folder. If you installed from GitHub with `npm i -g github:fmicalizzi/gemini-transcribe-ai`, export `GEMINI_API_KEY` in your shell instead.
+> **`.env` location:** the CLI always loads `.env` from the project root, even when run as a global command from another folder. If you installed from GitHub with `npm i -g github:fmicalizzi/gemini-transcribe-ai` instead of cloning, export `GEMINI_API_KEY` in your shell.
+
+Tell it what you need with flags — everything else has sane defaults:
+```bash
+transcribe ./audio  --diarization --formats txt,srt,json   # speakers + 3 formats
+transcribe ./audio  -l es -c 4 --recursive                 # Spanish, 4 parallel files
+transcribe ./audio  --dry-run                              # plan only, no API calls
+```
 
 ## Usage
 
@@ -69,23 +82,49 @@ transcribe <input-file-or-directory> [options]
 
 Supported inputs: `.mp3 .wav .m4a .aac .flac .ogg .webm`
 
-### Examples
+## Use cases
+
+**Transcribe one file the quick way** — clean text, no timestamps needed:
+```bash
+transcribe ./memo.m4a --formats txt
+```
+
+**A call or meeting with several people, including one longer than 30 min:**
+```bash
+transcribe "call with client.mp3" --diarization --formats txt,srt,json -v
+```
+Files over 30 min in this mode are chunked automatically (see [Chunking](#chunking)). You get `[Speaker 1]`, `[Speaker 2]`… in the `.srt` and a `speaker` field per word in the `.json` — the model separates voices but doesn't know *who* they are:
 
 ```bash
-# clean up a folder of WhatsApp voice notes
-transcribe ./notes -l es
+# once you've mapped who is who, rename the labels in all outputs
+sed -i '' 's/\[Speaker 1\]/[Hombre mayor]/g; s/\[Speaker 2\]/[Mujer]/g; s/\[Speaker 3\]/[Joven]/g' "call with client.srt" "call with client.txt"
+```
+(On Linux drop the `''` after `-i`.)
 
-# full transcript of a long meeting, with speakers and subtitles
-transcribe ./reuniones --diarization --formats txt,srt,json -v
+**A 3-hour recording** — chunking kicks in on its own, no flags required:
+```bash
+transcribe all-day-workshop.m4a -o ./out --formats txt,srt
+```
 
-# podcast episode longer than the API limit → automatic chunks
-transcribe 3-hour-podcast.m4a -o ./out --split-minutes 50
+**A whole folder of voice notes, in parallel**, transcripts next to each file:
+```bash
+transcribe ~/Downloads/notes -l es --formats txt -c 4
+```
 
-# check a batch (and its chunking) before spending credits
+**Jargon, product names and people the model keeps misspelling:**
+```bash
+transcribe standup.m4a --vocab "Globex,Kubernetes,JaneDoe,PostgreSQL"
+```
+
+**Everything under a tree, including subfolders:**
+```bash
+transcribe ./recordings --recursive --diarization -c 3 -v
+```
+
+**Check what a run would cost before spending credits:**
+```bash
 transcribe ./recordings --recursive --dry-run
-
-# domain jargon: force correct spelling of product/people names
-transcribe standup.m4a --vocab "AcmeCorp,Globex,JaneDoe,Kubernetes"
+transcribe --stats          # what you've spent so far: calls, hours, failures
 ```
 
 ## Modes & API rules
