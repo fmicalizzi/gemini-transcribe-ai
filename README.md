@@ -113,7 +113,7 @@ transcribe ~/Downloads/notes -l es --formats txt -c 4
 
 **Jargon, product names and people the model keeps misspelling:**
 ```bash
-transcribe standup.m4a --vocab "Globex,Kubernetes,JaneDoe,PostgreSQL"
+transcribe standup.m4a --vocab "AcmeCorp,Globex,Kubernetes,PostgreSQL"
 ```
 
 **Everything under a tree, including subfolders:**
