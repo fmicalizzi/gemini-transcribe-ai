@@ -36,6 +36,7 @@ const MIME_BY_EXT: Record<string, string> = {
   '.aac': 'audio/aac',
   '.flac': 'audio/flac',
   '.ogg': 'audio/ogg',
+  '.opus': 'audio/opus',
   '.webm': 'audio/webm',
 };
 

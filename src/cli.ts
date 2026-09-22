@@ -106,7 +106,7 @@ async function main() {
   
   if (stat.isDirectory()) {
     const allFiles = await getFiles(inputPath, !!options.recursive);
-    targetFiles = allFiles.filter(f => /\.(wav|mp3|aac|flac|ogg|webm|m4a)$/i.test(f));
+    targetFiles = allFiles.filter(f => /\.(wav|mp3|aac|flac|ogg|opus|webm|m4a)$/i.test(f));
   } else {
     targetFiles = [inputPath];
   }

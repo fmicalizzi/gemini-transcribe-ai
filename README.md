@@ -80,7 +80,7 @@ transcribe <input-file-or-directory> [options]
 | `--stats` | Print history summary (runs, calls, hours) and exit | — |
 | `-v, --verbose` | Per-step logs (upload, polling, chunks, cleanup) | off |
 
-Supported inputs: `.mp3 .wav .m4a .aac .flac .ogg .webm`
+Supported inputs: `.mp3 .wav .m4a .aac .flac .ogg .opus .webm` (incl. WhatsApp voice notes)
 
 ## Use cases
 
