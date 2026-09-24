@@ -164,6 +164,9 @@ export async function transcribeFile(filePath: string, opts: TranscribeOptions):
 
   log(`[INFO] Analyzing ${filePath}...`);
   const { durationSeconds } = await getMediaInfo(filePath);
+  if (durationSeconds <= 0) {
+    console.warn(`[WARN] Could not determine duration of ${path.basename(filePath)}; API duration limits cannot be enforced for it.`);
+  }
 
   const limit = durationLimit(opts);
   if (durationSeconds <= limit) {

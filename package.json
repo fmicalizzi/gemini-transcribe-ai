@@ -1,6 +1,6 @@
 {
   "name": "gemini-transcribe-cli",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Batch audio transcription CLI using Google's Gemini 3.5 Transcribe (Interactions API). Diarization, word timestamps, txt/srt/json outputs and automatic ffmpeg chunking for long files.",
   "license": "MIT",
   "private": true,
